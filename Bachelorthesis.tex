@@ -1,0 +1,758 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{a4wide}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{lipsum}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}  % For including images
+\usepackage{subfigure}  % In preamble
+\usepackage{bm}
+\usepackage{xcolor}  % For a colorfull presentation
+\usepackage{listings}  % For presenting code 
+
+\usepackage{hyperref}
+
+% Definition of a style for code, matter of taste
+\lstdefinestyle{mystyle}{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color[HTML]{F7F7F7},
+  rulecolor=\color[HTML]{EEEEEE},
+  identifierstyle=\color[HTML]{24292E},
+  emphstyle=\color[HTML]{005CC5},
+  keywordstyle=\color[HTML]{D73A49},
+  commentstyle=\color[HTML]{6A737D},
+  stringstyle=\color[HTML]{032F62},
+  emph={@property,self,range,True,False},
+  morekeywords={super,with,as,lambda, for, do, end, return, if, then},
+  literate=%
+    {+}{{{\color[HTML]{D73A49}+}}}1
+    {-}{{{\color[HTML]{D73A49}-}}}1
+    {*}{{{\color[HTML]{D73A49}*}}}1
+    {/}{{{\color[HTML]{D73A49}/}}}1
+    {=}{{{\color[HTML]{D73A49}=}}}1
+    {/=}{{{\color[HTML]{D73A49}=}}}1,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  keepspaces=true,
+  numbers=none,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=4,
+  frame=single,
+}
+\lstset{style=mystyle}
+
+\begin{document}
+\title{Bachelor Projekt proposition (2025)\\ Eksempel}
+\author{\color{red}Hans-Christian Møller Zerrahn - dhw960@alumni.ku.dk}
+\date{}
+\maketitle
+
+% Please leave the table of contents as is, for the ease of navigation for TAs
+\tableofcontents % Generates the table of contents
+\newpage % Start a new page after the table of contents
+\section{Problem formulation}
+Deep learnings neural networks has proven to be an effective method for spatiotemporal forecasting. Being able to make accurate predictions of future events has proven valuable, it prevents mistakes and improves decision quality. In this thesis, we will be applying the methods of deep learning to make predictions on mycelium growth patterns.
+To be more precise, based on sequential images of the initial growth of mycelium, the model will output a prediction sequence of images of future growth. Being able to predict future growth of mycelium has many use cases. Firstly one would be able to predict whether or not the mycelium will keep growing, this helps determine if the sample should keep growing or be scratched. Secondly some mycelium has shown to grow in ways that are optimal for fx. subway networks, this is explored in \cite{joseph2022slime}. 
+Which further adds incentives to learn and study the growth of mycelium. For this objective we will be using Convolutional Long Short-Term Memory (ConvLSTM) networks, because it combines the capturing of temporal (LSTM) and spatial (Convolution) dependencies, which is something most time-series models are not capable of. There is a generel problem with Deep Learning models getting stuck in local minimums during training. Moreover when making long prediction sequences, there usually is a lot of variance and predictions get unprecise. At last the number one problem with spatiotemporal models is their heavy memory usage.
+The topic of this thesis is to study how effective the ConvLSTM is at making predictions of variable sequence length. What effect the different hyperparameters, as well as different loss functions, has on the models soundness.
+\section{Theoretical background}
+\subsection{Neural Network}
+A neural network is a machine learning model type that mimicks the structure and function of biological neural networks. Much like the brain of a living being, it is composed of neurons and synapses. The neurons communicate through the signal in synapses, neurons take these signals as inputs passes them through an activation function for output.
+The neural network has an input layer, one or more hidden layers and an output layer. Each layer is built of neurons stacked on top of each other and has the same way of handling input.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.5\linewidth]{images/ANN.png}
+  \caption{Representation of a Neural Network. there is the three different types of layers, we see the neurons symbolized by nodes and synpases symbolized by edges. (reproduced from \cite{glosser_ann})} % Dummy caption generated using lipsum
+  \label{fig:n1}
+\end{figure}
+Every layer except the input layer has an activation function. An activation function is typically a non-linear function, this is because if a neural network only has linear activation functions the entire network is equivalent to a single layer model.
+Typical examples of activation functions include: ReLU, Sigmoid / logistic, hyperbolic tangens, exponential LU. The edges are usually some weight which is used to calculate the signal represented by a linear combination on the input.
+
+Multi-layered networks is one of the simplest forms of neural networks and often serves as the standard example. The following example is based on \cite{bishop2024deep}.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.5\linewidth]{images/NN.png}
+  \caption{Representation of a multi-layered Neural Network.(reproduced from \cite{bishop2024deep})} % Dummy caption generated using lipsum
+  \label{fig:n2}
+\end{figure}
+The weights of the edges into the neuron define the input into the associated activation function. The superscript $(1)$ is the symbol for being on the first layer and $j=1,\dots, M$.
+\begin{align}
+  a^{(1)}_j = \sum_{i=1}^{D} w^{(1)}_{ji} x_i + w^{(1)}_{j0}
+\end{align}
+The activation then takes that input and outputs the value of that node.
+\begin{align}
+  z_j^{(1)} = h\left(a_j^{(1)}\right)
+\end{align}
+Now the value of that node is used for the calculation of the input to the next activation function.
+\begin{align}
+  a_k^{(2)} = \sum_{j=1}^{M} w_{kj}^{(2)} z_j^{(1)} + w_{k0}^{(2)}
+\end{align}
+For $l=2,\dots,L-1$ and L being the total number of layers, we can start the recursion of $a_j^{(l+1)}$ and $z_j^{(l)} $
+\begin{align}
+z_j^{(l)} = h_l\left(a_j^{(l)}\right) \\
+a_j^{(l+1)} = \sum_i^M w_{ji}^{(l+1)} z_i^{(l)} = \sum_i^M w_{ji}^{(l+1)} h_l\left(a_i^{(l)}\right)
+\end{align}
+Then it is easy to find the output
+\begin{align}
+  y_j = h_L\left(a_j^{(L)}\right)
+\end{align}
+It is crucial to keep in mind that neural network (NN) is an umbrella term and therefore the term can be somewhat loose and two neural networks can be vastly different.
+\subsection{Recurrent neural networks}
+Recurrent neural networks (RNN) are a subcategory of neural networks, designed for sequential data, so that previous hidden states used to find outputs can be used as inputs for the next timestep.
+This makes it so the model can retain important information from the previous time step and use that information in the calculations of the output of current time step. 
+The following is based upon \cite{amidi_rnn_cheatsheet}, this provides an introduction to RNNs.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\linewidth]{images/architecture-rnn-ltr.png}
+  \caption{Representation of the architecture for a typical recurrent neural network (RNN), (reproduced from \cite{amidi_rnn_cheatsheet})} % Dummy caption generated using lipsum
+  \label{fig:n3}
+\end{figure}
+Now this should remind you of a Hidden Markov Model (HMM) because of the sequential structure and temporal dependence, one can think of RNNs as the differentiable version of an HMM.
+
+Typically the activation / hidden state $a^{\langle t \rangle}$ will look like a variation of this, for some activation function $\sigma_1$:
+\begin{align}
+  a^{\langle t \rangle} = \sigma_1\left(W_{aa} a^{\langle t-1 \rangle} + W_{ax} x^{\langle t \rangle} + b_a\right)
+\end{align}
+The hidden state is used as part of the input to the activation function $\sigma_2$ for the calculation of the output $y^{\langle t \rangle}$
+\begin{align}
+  y^{\langle t \rangle} = \sigma_2\left(W_{ya} a^{\langle t \rangle} + b_y\right)
+\end{align}
+Where the weights $W_{aa}, W_{ax}, W_{ya}$ and biases $b_a, b_y$ are shared temporally.
+
+What typically changes in different RNN's is the way the reccurent update happens. Changes usually occur because you want to make it specific for your task or to combat some problems you're having. One of the most common problems is the Vanishing / exploding gradient phenomena.
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{images/description-block-rnn-ltr.png}
+%   \caption{Representation of a vanilla RNN recurrent update block} % Dummy caption generated using lipsum
+%   \label{fig:n4}
+% \end{figure}
+\subsubsection{Exploding / vanishing gradient problem}
+In standard RNN there is a problem with finding gradients for the loss function w.r.t. the weights because as we showed in the backpropagation section we find the gradient as follows:
+\begin{align}
+  \frac{\partial L}{\partial h_k} = \frac{\partial L}{\partial h_t} \cdot \prod_{i=k+1}^{t} \frac{\partial h_i}{\partial h_{i-1}}
+\end{align}
+This is a problem for very high values of t because if we look at this term:
+\begin{align}
+  \frac{\partial h_i}{\partial h_{i-1}}
+\end{align}
+In this matrix for the eigenvalues that are less than one they will vanish and the ones that are greater than one will explode. This is because the term is multiplied together in a long consecutive chain.
+We observe that for $\frac{\partial h_i}{\partial h_{i-1}}$ with all eigenvalues less than one:
+\begin{align}
+  \left\| \prod_{i=k+1}^{t} \frac{\partial h_i}{\partial h_{i-1}} \right\| \to 0 \quad \text{as } t - k \to \infty
+\end{align}
+Conversely for eigenvalues greater than one we observe:
+\begin{align}
+  \left\| \prod_{i=k+1}^{t} \frac{\partial h_i}{\partial h_{i-1}} \right\| \to \infty \quad \text{as } t - k \to \infty
+\end{align}
+This is known as the exploding / vanishing gradient problem typical for RNNs.
+\subsection{Long short-term memory}
+The long short-term memory (LSTM) network, which is a gated RNN, was made to fix the problem RNNs had with exploding / vanishing gradients. 
+Instead of reccurently connecting hidden units like in a normal RNN, LSTM connects cell blocks made up of non-linear and linear operations on different gates.
+A LSTM cell consists of an input, three gates, a cell update, cell state and a hidden state (the output). This section is based on \cite{goodfellow2016lstm}.
+
+A gate is a learned mechanism for controlling the amount of information that flows through a cell.
+There is three different types of gates in a cell in a LSTM, the forget gate decides how much of old information to keep, the input gate decides how much of new information to introduce into memory and the output gate decides how much of the memory we want to output.
+\begin{align}
+  f_t = \sigma(W_f \cdot [h_{t-1}, x_t] + b_f) \\
+  i_t = \sigma(W_i \cdot [h_{t-1}, x_t] + b_i) \\
+  o_t = \sigma(W_o \cdot [h_{t-1}, x_t] + b_o) 
+\end{align}
+Where $f_t$ is the forget gate, $i_t$ is the input gate and $o_t$ is the output gate and $\sigma$ is the sigmoid function.
+
+The cell update is the mechanism deciding how we should update our cell state. It has much like the gates, the previous hidden state and the current input as input variables. It decides what to write in the new cell state based on the new information from the previous cell.
+\begin{align}
+  \tilde{c}_t = \tanh(W_c \cdot [h_{t-1}, x_t] + b_c)
+\end{align}
+
+The cell state can be intuitively seen as the long-term memory of the network. Each cell in the recurrent network has a state that symbolizes the memory at that time. The information flows chronologically up through the cells and at each cell it calculates how much information of the previous cell state should be kept and how much new information to put into memory. 
+The cell state is defined by the forget gate, the previous cell state, the input gate and the cell update. The forget gate determines how much of the previous cell state to keep, this is usually pretty close to one. The input gate determines how much of the cell update should be added to the cell state.
+Due to the current cell states dependence upon the previous it makes it so that all cell states at time  $t_n$ are dependent upon all previous cell states at time $t_i<t_n$, unless $f_t=0$  then all memory is wiped and the new chain of dependence starts at $t$.
+\begin{align}
+  c_t = f_t \odot c_{t-1} + i_t \odot \tilde{c}_t
+\end{align}
+Where the symbol $\odot$ represents the element-wise product / hadamard product.
+
+The last part of the cell calculates the hidden state. It is the element-wise product of the output gate and $\tanh(c_t)$. The output gate controls how much of the cell state we want to output. The hidden state is the output of the cell.
+\begin{align}
+  h_t = o_t \odot \tanh(c_t)
+\end{align}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\linewidth]{images/LSTM.png}
+  \caption{Cell architecture in a LSTM. (reproduced from \cite{goodfellow2016figure})} % Dummy caption generated using lipsum
+  \label{fig:n5}
+\end{figure}
+LSTM solves the vanishing / exploding gradient problem by using self-loop on the cell-states. Because it uses the previous cell-state to calculate the current cell-state, it creates a linear path for the gradient through time. This is easy to see when we remember how the gradients are calculated through back-propagation or when we explored the vanishing / exploding gradient problem for generel RNN.
+\begin{align}
+  \frac{\partial L}{\partial c_t} = \frac{\partial L}{\partial c_T} \prod_{i=t+1}^{T} \frac{\partial c_t}{\partial c_{t-1}}
+\end{align}
+But this is no problem because
+\begin{align}
+  \frac{\partial c_t}{\partial c_{t-1}} = f_t
+\end{align}
+Previously whenever the gradient hit zero it would be stuck there, because this is a minimum and therefore optimized, even though it wasnt optimzed. Now what is great about this is, that the gradient is controlled by $f_t$ so if one of them is zero, that means things are forgotten and we are in a minimum for the loss function w.r.t. the cell state. 
+However because all of the gates are learnable, if the model now learns that it has to retain memory then it can change the forget gates and the gradient will no longer be stuck at zero. This is why we usually see $f_t \approx 1$ because the model learns that it is good to retain memory of previous states.
+Of course the exploding gradient is no longer a problem since $0\leq f_t \leq 1$. Since all the weights and biases of the gates and cell update doesn't flow through time, the exponential growth or descent doesn't happen the same way.
+\subsection{Convolutional neural networks}
+Convolutional neural networks (CNNs) has had huge pratical succes. A CNN is a neural network that use convolution instead of matrix multiplication in minimum one of it's layers. The material presented in this chapter is adapted from \cite{goodfellow2016CNN}.
+\subsubsection{The convolution operator}
+The convolution operator is defined as:
+\begin{align}
+  s(t)=(x * w)(t)=\int x(a) w(t-a) d a
+\end{align}
+Where $x$ is typically our input / data we want changed and $w$ is a weighting function used to change the input / data.
+
+We have the discrete convolution:
+\begin{align}
+  s(t)=(x * w)(t)=\sum_{a=-\infty}^{\infty} x(a) w(t-a)
+\end{align}
+This is for when $x$ and $w$ only has integers in their domain.
+
+If we apply the discrete convolution to an image, the image is a two-dimensional matrix and we then use a two-dimensional kernel as weight, we get to following:
+\begin{align}
+  S(i, j)=(I * K)(i, j)=\sum \sum I(m, n) K(i-m, j-n)
+\end{align}
+Since convolution is commutative, due to the flipping of the kernel relative to the input, we can rewrite as:
+\begin{align}
+  S(i, j)=(K * I)(i, j)=\sum \sum I(i-m, j-n) K(m, n)
+\end{align}
+This is called 2-D convolution.
+
+However practically convolution is almost never used. It is mostly used because of its utilty in proofs because of it's commutative property.
+Most neural network libraries implement the cross-correlation, which doesnt have the commutative property, but is much easier to work with in practice.
+\begin{align}
+  S(i, j)=(K * I)(i, j)=\sum \sum I(i+m, j+n) K(m, n)
+\end{align}
+Cross-correlation will often be reffered to as convolution, because it practically does the same thing.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\linewidth]{images/2dconv.png}
+  \caption{A generel example for 2-D convolution. (reproduced from \cite{goodfellow2016figure2})} % Dummy caption generated using lipsum
+  \label{fig:n6}
+\end{figure}
+\subsubsection{Benefits of convolution}
+There is three main benefits to using convolution with a kernel. 
+\begin{enumerate}
+  \item \textbf{Sparse interactions:} A typical fully connected neural network (as described in the neural network chapter) contains an edge between each node in layer $l-1$ and each node in layer $l$. 
+  Each edge corresponds to a unique parameter, resulting in a dense connectivity pattern and a large number of parameters. In contrast, convolutional neural networks (CNNs) use a small kernel with size $W_{\text{kernel}} \times H_{\text{kernel}}$, which is applied across the input. 
+  This reduces the number of parameters and results in sparse interactions between input and output, since each output unit depends only on a small part of the input. fx. CNN with kernel $3 \times 3$ and image $64 \times 64$, $\text{stride} = 1$, $\text{padding} = \text{"same"}$ then the number of connections is $\text{\#connections} = 64^23^2 = 36864$. Now look at a fully connected neural network with input image of dim $64 \times 64$, that has  $512$ number of hidden units, then the number of connections is $\text{\#connections} = 64^2\cdot 512=2097152$
+  This means that computing the output requires fewer operations.
+  \item \textbf{Parameter sharing: } In a typical fully connected neural network all parameters are uniquely used once when computing the output of a layer. However in a CNN parameters are shared, meaning that weights can be used mulitple times on different input. It follows the same growth as above in terms of computation time. So by sharing parameters the number of computations and memory that has to be used is significantly lowered. Because of the lower number of parameters, the model needs less data to train on, because there is less parameters to train. Further we see that there is less overfitting when using fewer parameters.
+  \item \textbf{Equivariant representations: } Equivariance between to functions $g(x)$ and $f(x)$ means that $g(f(x)) = f(g(x))$. Intuitively this just means no matter in which order the functions are applied the results will be equivalent. For convolution the type of parameters sharing makes it so the layer is equivariant to translation. Meaning translation that shifts the input, lets say $g(I)(i,j)=I(i - 1,j - 1)$ then $\left(K * g(I)\right)(i, j)=(K * I)\left(i-1, j-1\right)$.
+\end{enumerate}
+\subsubsection{Pooling}
+The pooling operation on two dimensional matrices pools together a region and outputs a singular value. Examples of pooling include max pooling and average pooling. Max pooling outputs the max value of the values included in its region (pools the whole region together to the maximum value). The average pool finds the average of the region and outputs it.
+Pooling helps with invariance, because it pools together a region and unifies it into one value. This leads to the fact that small variances will be smoothed out by the pooling.
+When you add pooling it's like assuming an infinitely strong prior. The prior being that the learned function is invariant to minor translations. This will heavily benefit the statistical efficency, granted the prior assumtion is correct.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\linewidth]{images/maxpool.png}
+  \caption{Example of max pooling. (reproduced from \cite{maxpool_cs_wiki})} % Dummy caption generated using lipsum
+  \label{fig:n7}
+\end{figure}
+\subsubsection{Structure of CNN}
+All in all a CNN consists as a minimum of five layers: input, convolution, activation function, pooling and an output layer. 
+The input and output layers are selfexplanatory necessary, the input layer is made up of number of dimensions and number of channels. In the case of an image there would be two dimensions (height and width) and three channels for RGB images and one channel for greyscale images. The output layer can really vary quite a bit depending on the prediction, it could be an image or a number of classes associated with a probability.
+The convolution layer is where the model has its parameters / kernel and is therefore where the model learns. It detects local patterns and outputs these as hidden channels. In the convolution layer the number of parameters depend upon number of input channels and hidden channels aswell as the size of the kernel. Imagine Input: $(C_{in}, H, W)$. Output: $(C_{out}, H_{out}, W_{out})$ for the convolution then there is a kernel for each pair of input channel and output channel. These output channels / hidden channels are feature maps, they have the capability to represent for the same input a different feature.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\linewidth]{images/CNN.png}
+  \caption{Example of a CNN (reproduced from \cite{bishop2024deeplearning})} % Dummy caption generated using lipsum
+  \label{fig:n8}
+\end{figure}
+Earlier we discussed why there has to be a non-linear activation function in between convolutional layers, but it is basically to preserve the complexity of the model and not just let it be boiled down to one linear model.
+The pooling layer has been discussed in the above chapter, it makes the network more invariant and lessens the number of computations. Sometimes there is a fully connected layer, this layer sums up all the learned features and helps point at a conclusion.
+\subsubsection{2D Cross-correlation}
+The following is based on the library Pytorch's class \cite{pytorch_conv2d}.
+
+Input: $(N, C_{in}, H, W)$. Output: $(N, C_{out}, H_{out}, W_{out})$.
+\begin{align}
+    out_{i, j} = b_{j}+\sum^{C_{in}-1}_{k=0} \text{Kernel}_{j, k} \star input_{i, k}
+\end{align}
+Where N is number of batches, $C_{in}$ is number of input channels, $C_{out}$ is number of output channels, H is the height of the input, W is the width of the input, $H_{out}$ is the height of the output, $W_{out}$ is the width of the output, i is the index for N and j is the index for $C_{out}$ and $\star$ is the cross correlation operator. i is the index for the batch and j is the index for the output channel. For each possible combination pair of batch and output channel the $out_{i, j}$ is calculated.\\ 
+The dimensions of the output is calculated by:
+\begin{align}
+    H_{out}&=\left\lfloor\frac{H_{in}+2\times\mathrm{padding}[0]-\mathrm{dilation}[0]\times(\text{kernel size}[0]-1)-1}{\mathrm{stride}[0]}+1\right\rfloor\\
+    W_{out}&=\left\lfloor\frac{W_{in}+2\times\mathrm{padding}[1]-\mathrm{dilation}[1]\times(\text{kernel size}[1]-1)-1}{\mathrm{stride}[1]}+1\right\rfloor
+\end{align}
+\subsection{Convolutional LSTM}
+By combining the capabilities of the LSTM and the CNN we get the convolutional LSTM. The main structure is still the LSTM, because we are using the same Cell architecture. We are just using different operands and different dimensions. By having the inputs $x_1, \dots, x_t$, cell states $c_1,\dots, c_t$, hidden states $h_1, \dots, h_t$ and the gates $i_t, f_t, o_t$ all be 3D tensors with dimensions (Channels, width, height), we can now input spatial data into our model.
+The notation and setup closely follows \cite{Shi2015ConvolutionalLN}.
+To handle these new dimensions we are using the convolution operator $(*)$. All the weights
+\begin{align*}
+  W_xi, W_xf, W_hc, W_xo \in \mathbb{R}^{C_{hidden} \times C_{input} \times kH \times kW}\\
+ W_hi, W_hf, W_hc, W_ho \in \mathbb{R}^{C_{hidden} \times C_{hidden} \times kH \times kW} 
+\end{align*}
+ are kernels of 4 dimensions, mean while the weight 
+ \begin{align*}
+  W_ci, W_cf, W_co, \in \mathbb{R}^{C_{hidden} \times H \times W}
+ \end{align*}
+ is a parameter tensor and 
+ \begin{align*}
+   b \in \mathbb{R}^{C_{hidden} \times 1 \times 1}
+ \end{align*}
+is a bias vector.
+Here we still use $\odot$ as the symbol for hadamard.
+\begin{align}
+i_t &= \sigma(W_{xi} * \mathcal{X}_t + W_{hi} * \mathcal{H}_{t-1} + W_{ci} \odot \mathcal{C}_{t-1} + b_i) \\
+f_t &= \sigma(W_{xf} * \mathcal{X}_t + W_{hf} * \mathcal{H}_{t-1} + W_{cf} \odot \mathcal{C}_{t-1} + b_f) \\
+\mathcal{C}_t &= f_t \odot \mathcal{C}_{t-1} + i_t \odot \tanh(W_{xc} * \mathcal{X}_t + W_{hc} * \mathcal{H}_{t-1} + b_c) \\
+o_t &= \sigma(W_{xo} * \mathcal{X}_t + W_{ho} * \mathcal{H}_{t-1} + W_{co} \odot \mathcal{C}_t + b_o) \\
+\mathcal{H}_t &= o_t \odot \tanh(\mathcal{C}_t)
+\end{align}
+As we can see the parameters are reused across all time frames, only the gates, hidden state and cell state are changing over time. In practice the parameters $W_ci, W_cf, W_co$ are really just vectors of hidden channels length, which are then broadcasted up so each scalar now is a $height \times width$ matrix. 
+The gates are further changed by the peephole connections with the peephole weigths $W_ci, W_cf, W_co$, we have $W_{ci} \odot \mathcal{C}_{t-1}, W_{cf} \odot \mathcal{C}_{t-1}, W_{co} \odot \mathcal{C}_t $. We are including a term with the previous cell state, so the gates can change according to what is currently in memory. However the peephole implementation isn't a must do and one should be aware that it adds weights and therefore computation time.
+
+\subsection{Loss function}
+Loss function is the function used to measure error. There is plenty of loss functions to pick from depending on the scenario some are more appropiate than others.
+Since the loss function is, what we are measuring our error on and are using to optimize our model, the choice of loss function matters a lot. The notation used for loss functions throughout this paper is $L(f(x; \theta), y)$ where $f$ is the model making a prediction. The generel goal is for $f(x; \theta) \approx y$, which is what we hope to achieve by minimizing the loss function.
+One has to be aware of overfitting and keep in mind that most outcomes has a variance, therefore a bit of error is acceptable and the goal in reality is try and find a model mimicking the underlying / true model for the data.
+\subsubsection{Dice loss}
+The dice Score is a measure for how many elements two sets has in common
+\begin{align}
+  \text{Dice Score} =\frac{2|P \cap T|}{|P|+|T|}
+\end{align}
+
+The principle of the dice Score can be transformed into a loss function called the dice loss. It looks at the predicted matrix and the target matrix and compares the values of the same entrance.
+\begin{align}
+  L_{\text {dice }}=1-\frac{2 \sum_{m,n} t_{m,n} p_{m,n}}{\sum_{m,n}\left(t_{m,n}+p_{m,n}\right)}
+\end{align}
+The Dice score is equal to one when we have the exact same values and zero for when one of the values are zero.  
+\subsubsection{Weights}
+The focal weight is used to increase to loss for hard predictions and reduce the loss for easy predictions. Firstly the probability on the predictions is found
+\begin{align}
+  \hat{P} = \sigma(\hat{y})
+\end{align}
+We then use this to find the probability of the true class
+\begin{align}
+  P_t = y \hat{P} + (1-y)(1-\hat{P})
+\end{align}
+The focal weight is then
+\begin{align}
+  Focal-weight = (1-P_t)^\gamma
+\end{align}
+$P_t$ is close to one when the predicted probability of the true class is close to one. This makes it so this $(1-P_t)^\gamma$ is close to zero, which is what we want because if $P_t \approx 1$ then it must be an easy prediction. However if $P_t$ is close to zero then it must be a hard prediction to make so the focal weight is closer to one, which isn't punished as hard. Typically $\gamma > 1$ because we want to punish lower values of $P_t$ harder in the loss.
+
+
+% The function of distance weight is implied in the name. It is used to punish predictions that are further away from the target on an image harder than those close to the target. Imagine a binary matrix and zeroes are background and ones are foreground, then a matrix is created with the euclidian distance calculated to the nearest foreground pixel for each entrance in the input matrix.
+
+% We create a binary mask $M \in {0,1}^{H \times W}$, where $M_{i,j} = 1$ is foreground and $M_{i,j} = 0$ is background. We get the following
+% \begin{align}
+%   D(i, j) = \min_{i^\prime, j^\prime} \sqrt{(i-i^\prime)^2+(j-j^\prime)^2} \text{   Given that    } M_{i^\prime, j^\prime} = 1
+% \end{align}
+% This is the distance weight for entrance $i, j$
+
+\subsubsection{Binary Cross Entropy with sigmoid layer}
+The BCE loss is for binary ground truth labels and prediction labels $p \in [0,1]$.
+\begin{align}
+  \text{BCE}(\hat{y}, y) = - \left( y \log(\hat{y}) + (1 - y) \log(1 - \hat{y}) \right)
+\end{align}
+intuitively we can see that the model punishes wrong guesses really hard due to how the natural logarithm scale for values in range $[0;1]$.
+
+Taking the sigmoid function of the prediction works extremely well because it maps prediction to values in $[0,1]$. This is advantageous because it is binary events and we want to know the probability of a pixel being one or zero. $\sigma(0)=0.5$ this is great for binary tasks, because we can then use zero as a threshold for classification. Further it is differentiable and smooth, which is important since we have to find the gradient of the loss function.
+\begin{align}
+  l_{n}&=\left[p y_{n} \cdot \log (\sigma\left(x_{n}\right))+\left(1-y_{n}\right) \cdot \log \left(1-\sigma\left(x_{n}\right)\right)\right]
+\end{align}
+We are further adding a weight to the loss, this is done to adjust for class imbalance. If there is a majority of one class it can be a problem because its then more safe to bet on it being that class, so the weight is making up for the class imbalance.
+\begin{align}
+  p &= \frac{N-\sum^{N}_{n=1} y_n }{\sum^{N}_{n=1} y_n}
+\end{align}
+\begin{align}
+  \ell(x, y)&=\frac{1}{N} \sum^{N}_{n=1} l_{n}
+\end{align}
+In the end we average over the loss for each pixel and get the average error on the prediction.
+
+This loss is good for prioritizing generating correct pixels, binary prediction tasks and reducing the problem with class imbalance.
+
+\subsection{Backpropagation}
+The backbone of the Backpropagation algorithm is the chain rule.
+
+Chain rule: If $g$ is differentiable at $x$ and $f$ is differentiable at $g(x)$, then the composite function $h=f \circ g$ is differentiable at $x$ and $h^\prime(x)$ is given by:
+\begin{align}
+  h^\prime(x)=f^\prime(g(x))\cdot g^\prime(x)
+\end{align}
+Using Leibniz notation, which is the notation moving forward, we have:
+\begin{align}
+  \frac{d f}{d x} = \frac{d f}{d g } \frac{d g}{d x}
+\end{align}
+We define $u^{(i)}$ as
+\begin{align}
+  u^{(i)} = f^{(i)}(\mathbb{A}^{(i)})
+\end{align}
+Where $\mathbb{A}^{(i)}$ is the set of all nodes that are parents to $u^{(i)}$. This is the notation from \cite{Goodfellow-et-al-2016}, which we are basing this section on.
+
+Since we are looking at graphs, only parents of the node serve as input to the function associated with that node.
+We consider a graph describing how to compute a scalar $u^{(n)}$ at node n, this scalar is the one we want to find the gradient of with respect to its $n_i+n$ ancestors $u^{(1)}$ to $u^{(n_i)}$ in the graph, ie. we want to find $\frac{\partial u^{(n)}}{\partial u^{(i)}}$ for $i \in \{1,2,\dots, n_i\}$. 
+With the assumption that the nodes in the graph has been ordered in a way that we can compute the output $u^{(t)}$ for $t \in \{n_i+1, n_i+2,\dots, n\}$ one after the other.
+
+We can per the chain rule, compute partial derivitives as
+\begin{align}
+\frac{\partial u^{(n)}}{\partial u^{(j)}} = \sum_{i : j \in \text{Pa}(u^{(i)})} \frac{\partial u^{(n)}}{\partial u^{(i)}} \frac{\partial u^{(i)}}{\partial u^{(j)}}
+\end{align}
+
+Using the above we can derive the pseudo code for the back propagation algorithm
+\begin{algorithm}[H]
+  \caption{Simplified Backpropagation Algorithm }\label{alg:simple-backprop}
+  \begin{algorithmic}[1]
+  \State use   $u^{(i)} = f^{(i)}(\mathbb{A}^{(i)})$ to obtain the activations of the network.
+  \State Initialize \texttt{grad\_table}, a data structure that will store the derivatives that have been computed.
+  \Statex \hspace{1.5em} The entry \texttt{grad\_table}[$u^{(i)}$] stores \( \frac{\partial u^{(n)}}{\partial u^{(i)}} \)
+  \State \texttt{grad\_table}[$u^{(n)}$] $\gets 1$
+  \For{$j = n-1$ \textbf{downto} $1$}
+    \Statex \hspace{1.5em} Compute:
+    \[
+      \frac{\partial u^{(n)}}{\partial u^{(j)}} = \sum_{i : j \in \mathrm{Pa}(u^{(i)})} \frac{\partial u^{(n)}}{\partial u^{(i)}} \cdot \frac{\partial u^{(i)}}{\partial u^{(j)}}
+    \]
+    \State \texttt{grad\_table}[$u^{(j)}$] $\gets \sum_{i : j \in \mathrm{Pa}(u^{(i)})}$ \texttt{grad\_table}[$u^{(i)}$] $\cdot \frac{\partial u^{(i)}}{\partial u^{(j)}}$
+  \EndFor
+  \State \Return $\{\texttt{grad\_table}[u^{(i)}] \mid i = 1, \dots, n_i\}$
+  \end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Gradient descent}
+Gradient descent is an optimization algorithm, it converges towards a minimum by moving in the direction of the negative gradient. This section is follows \cite{ruder2016overview} explaination of gradient descent and it's variants.
+There is the three primary types of gradient descent:
+\begin{enumerate}
+  \item \textbf{Batch gradient descent:}
+  This is the standard gradient descent method. It computes the gradient of the loss function w.r.t. the parameters of the loss function for the entire dataset.
+  Since it has to calculate gradients on the entire dataset it can be very slow and in a lot of cases the dataset will be to big to fit into memory, which will cause the program to crash.
+  \begin{align}
+  \theta = \theta - \eta \cdot \nabla_\theta L(\theta)
+  \end{align}
+$\theta$ represents the parameters / weights, $\eta$ is the learning rate and $\nabla_\theta L(\theta)$ is the gradient of the loss function w.r.t. the parameters.
+This method will always converge to a local minimum. 
+
+  \item \textbf{Stochastic gradient descent (SGD):}
+This is a common used method for updating parameters, it updates the parameters for each sample in the dataset
+\begin{align}
+\theta = \theta - \eta \cdot \nabla_\theta L(\theta; x^{(i)}; y^{(i)})
+\end{align}
+This saves a lot of computations and is therefore faster, because it doesnt have to do them on the entire dataset. It does however have the effect that the more frequent updates has a higher variance, which causes the weights to fluctate.
+These fluctuations can cause the parameters to jump to a different local minimum and escape the crevasse it was in. The high variance can make it harder for the parameters to converge to a minimum, but this can be combated by decreasing the learning rate over time. It has to be mentioned that for each epoch we shuffle the dataset, as to avoid the model learning the order of the dataset and to keep it unbiased.
+
+  \item \textbf{Mini-batch gradient descent:}
+  Minibatch gradient descent is a combination of both of the above. It takes more than just a single sample and less than the entire dataset. This deals with the problems in both methods, it reduces the computation time, helps with memory management and reduces variance, which helps with convergence.
+  \begin{align}
+    \theta = \theta - \eta \cdot \nabla_\theta J(\theta; x^{(i:i+n)}; y^{(i:i+n)})
+  \end{align}
+The batch size can vary greatly, the smaller the size the less computations and memory use, but also results in higher variance and vice versa.
+When using mini-batches different deep learning libraries leverages super optimized linear algebra methods combined with parallel computations of samples using GPU's.
+\end{enumerate}
+\subsubsection{ADAM}
+The Adaptive Moment Estimation (ADAM) method is used for computing adaptive learning rates of the individual parameters.
+\begin{align}
+  m_t &= \beta_1 m_{t-1} + (1 - \beta_1) g_t \\
+  v_t &= \beta_2 v_{t-1} + (1 - \beta_2) g_t^2
+\end{align}
+$m_t$ and $v_t$ are estimates of the mean and the variance of the gradients respectively. As we can see per the formula, the estimate of the moments are dependent upon the estimate of moments of previous timesteps. $m_t$ and $v_t$ are initialized as vectors of zero thus making them biased towards zero, the bias is extra present during initial time steps and when $\beta_1$ and $\beta_2$ are close to one.
+ADAM combats these biases by using bias-corrected mean and variance estimates.
+\begin{align}
+\hat{m}_t &= \frac{m_t}{1 - \beta_1^t} \\
+\hat{v}_t &= \frac{v_t}{1 - \beta_2^t}
+\end{align}
+This gives the following ADAM update rule:
+\begin{align}
+  \theta_{t+1} = \theta_t - \frac{\eta}{\sqrt{\hat{v}_t} + \epsilon} \hat{m}_t
+\end{align}
+\section{Methodology}
+This study uses a ConvLSTM model to predict the future growth of mycelium. The methods include extensive data preprocessing, choice of model architecture and hyperparameters, training with a combined loss function with varying weights aswell as an evaluation based on visual inspection and error functions for prediction precision.
+\subsection{Data}
+
+\subsubsection{Data collection}
+The dataset \cite{andyg} was found on the open source platform Figshare, where it was published by Andy Goldsmith. The dataset was collected over six different trials, for each trial they grew three batches each captured with its own camera. The image collection was done by having the yeast grow on agar plates with growth medium Yeast Extract-Peptone-Glycerol. The agar plates was organized into grids, to save space and streamline the documentation proces, they were placed inside an incubator as to prevent contamination of the mycelium. The images was captured with a camera placed on a motorized cart on a track inside of the incubator. Photos was taken in a frequency rate that is meant to capture the critical parts of mycelium growth behavior, which means time between each frame is in the span of hours, each colony grew over several days, most frequently around three days.
+\subsubsection{Data organization}
+The dataset consists of images of the yeast \textit{Saccharomyces cerevisiae}, which is the common yeast used in brewing. It is time series data so each image represents a frame in a timelapse of a yeast colony growing. There is 5500 colonies, 196 unique strains of the yeast species and in total there is 933103 images existing in the dataset. The image file names are named in a manner so it's easy to identify which strain and experiment iteration it belongs to, further the growth time for the yeast at time of capture is recorded. File names are of the form: "YPG11407\_001\_1080.jpg", YPG is the growth medium, 11407 is the strain, 001 is the experiment iteration and 1080 is for how long it has been growing in minutes.
+
+\subsubsection{Data preprocessing}
+There were a couple problems identified with how the data were organized, when loading in data, there is no meta data descriping the order of the images in the directory (which was made so frames was in chronological order etc.), when loading in the files the Pytorch program therefore went to the default and sorted files alphabetically, which is a problem because it would then sort images at time 1200 before images at time 200. 
+So i wrote a program that stores the strain, experiment iteration and time frame and then sorted numerically from lowest to highest instead of alphabetically. Another problem i ran into was that because im using a convolutional neural network, all the image resolutions has to be the same which they were not due to the fact each image are cut to the edge of the hyphae expansion and since the hypaes expand for each image they all had different resolutions.
+ I found the highest width and height in the data and then padded all the images with black pixels so they all had the resolution Max Width x Max Height, i padded them in a way that kept the original image centered. I then grouped the images into sets of strain and experiment iteration so that the frames is sorted as a sequence. 
+ I then split each sequence into input frames and target frames. The same number of frames that needs to be predicted, the same number of target frames is needed for training. Say we want to predict $80$ frames ahead then $80$ target frames will be stored and removed from the sequence, the remaining sequence is then the input sequence.
+
+ To be able to train the model i had to make sure that each batch of sequences had the same number of frames. This is already fullfilled for the target sequence, but the input sequence will have varying lengths. therefore i also padded the input sequences, by finding the max number of frames for the input sequences in a batch and then added black images at the end of the rest of the input sequences in that batch, so the lengths match.
+
+The entire dataset is split up into three segments, a training set, a validation set and a test set, each respectively consisting of $70\%$, $15\%$ and $15\%$. This part is crucial when it comes to the methodology of Machine learning. Since we are using data to train the model, that data cannot be used to evaluate the model because the model is fitted to that exact data, so the error will always be low, granted you made a good model. The only real way to test if a model is good is to validate it on some data that it has not been trained on. Therefore we keep a segment of the data as validation data and keep checking our produced models on that validation data, to make sure we are not overfitting and it captures the underlying model that distributes this data. One has to be careful because once some data has been used for validation and we change parameters according to that validation process, the model now becomes biased towards that data and the model and the validation data is no longer independent. Thats why we keep a portion for testing, this is the part of the dataset that has to be locked away, while models are being created, because once we use it for testing, we can no longer make changes to the model and make an unbiased evaluation of the model using that data. We are essentially burning data everytime we use it to test the models ability to capture the underlying structure of the data. The more we change our models based on the errors we see in the validation set the more biased that data and our models become, which is not good, because ideally we want the model to be as unbiased as possible so we know how it will perform on new data.
+\subsection{Reasoning behind choices}
+models, algorithms, optimizers, loss functions, evaluering etc.
+\subsubsection{ConvLSTM}
+In this study we use the ConvLSTM model. The reasoning behind this is simple:
+\begin{enumerate}
+  \item The model is capable of learning spatiotemporal patterns. It can do so locally which is great for mycelium data since it only spreads to neighbouring pixels. 
+  \item It is combining the strengths of two basic strong deep learning methods. Due to the capabilities of the LSTM it processes sequences chronologically by having hidden states over time, which is advantageous because growth happens step by step. CNN is considered one of the strongest methods for image analysis. So the combination of these models is rather sensical.
+  \item ConvLSTM is super memory efficient compared to other spatiotemporal models. Because LSTM conserves weights over time because its reccurent. Thanks to the convolutional operator, it is possible to retain the native data structure and use few weights for the kernel. ConvLSTM can do step wise prediction, meaning it can generate one frame at a time, each based on the previous hidden state. The each predicted frame is then collated into a sequence, this is in contrast to predicting the entire sequence at once. This makes it so longer sequences can be predicted without worrying about running out of memory.
+\end{enumerate}
+\subsubsection{Backpropagation}
+The choice of backpropagation was straight forward.
+\begin{enumerate}
+  \item It is efficient in calculating the gradients w.r.t. the parameters.
+  \item It works well with gradient descent.
+  \item Scales well and works for all computation graphs.
+  \item It is the most widely implemented algorithm in deep learning libraries and is really the standard.
+\end{enumerate}
+\subsubsection{Gradient descent: ADAM}
+Considerations with gradient descent
+\begin{enumerate}
+  \item It is the most implemented method
+  \item Simple and effective, scales well
+\end{enumerate}
+Reasoning behind ADAM
+\begin{enumerate}
+  \item Has momentum which is great, because it remembers earlier gradients, which smooths out updates.
+  \item Works well for sequences and for mini-batches.
+\end{enumerate}
+\subsubsection{Loss functions: Dice and BCE}
+BCE with a sigmoid layer is a relatively normal loss function to use for binary segmentation, which is much a like to what we are doing.
+\begin{enumerate}
+  \item It's great at measuring each pixel and for comparing the probability prediction to the target. It does so in a way that strongly directs the loss by punishing wrong predictions hard.
+  \item Works directly at what we are doing, which is predicting a binary probability for each pixel in the image.
+\end{enumerate}
+The Dice loss is a mathematical translation of what we are trying to do, which is to make the mycelium predictions overlap the target.
+\begin{enumerate}
+  \item Dice loss is good for data with disproportionate background and foreground ratio. It only focuses on the overlap between the foreground of the target and the prediction.
+\end{enumerate}
+By combining these losses we get the best of both worlds. The BCE which is focusing hard on correct predictions and the dice loss which is more forgiving and works well for disproportionate datasets. Both losses use sigmoid activation so the outputs can be intepreted as probabilities.
+\subsection{Software and tools}
+To implement the model and load, sort, transform and plot data the programming language Python v. 3.12.2 installed through conda-forge in a conda enviroment.
+For implementation im using the following libraries
+\begin{itemize}
+  \item \textbf{Standard python libraries:} Operating system interface (OS), Random, multiprocessing.dummy
+  \item \textbf{Data handling:} Numerical python (numpy), Python data analysis (Pandas)
+  \item \textbf{Plotting and visualization:} Matplotlib.pyplot
+  \item \textbf{Image and videos:} OpenCV (cv2), Pillow (PIL, Image, ImageOps)
+  \item \textbf{Progress bar:} Taqaddum (tqdm)
+  \item \textbf{Pytorch:} torch, torch.nn, torch.nn.functional, torch.optim, torch.utils.data, torch.cuda.amp
+  \item \textbf{TorchVision:} torchvision.transforms, torchvision.datasets
+  \item \textbf{Scientific computing:} Scientific Python (SciPy, scipy.ndimage.distance\_transform\_edt)
+  \item \textbf{Image morphology:} Scikit-image morphology module (skimage.morphology)
+\end{itemize}
+\subsection{Hardware}
+Data manipulation, model creation and training happens in python and jupyter notebook files. For testing and visualization jupyter notebook is used, for training we run the python file from terminal on a cloud computer.
+The training happens on a cloud computer running an AMD EPYC 9454 CPU with 48 physical cores / 192 threads and 2.75 GHz combined with a NVIDIA H100 GPU and 756 GiB RAM. This is an incredibly strong computer, the GPU is the state of the art when it comes to training AI models and it has the ram and CPU to support it. The reason this is so important is because AI models can be trained using parallel operations on GPU's which makes the training process 10x-100x faster.
+With a dataset of this magnitude and a rather memory hungry model, training on a regular computer is not considered viable. The test runs and data manipulation aswell as visualization is done on a regular computer however.
+\section{Experiments and analysis}
+\subsection{Model}
+This is the Architecture of each cell in the implemented ConvLSTM model:
+\begin{align}
+  i_t &= \sigma(W_{i} * [\mathcal{X}_t, \mathcal{H}_{t-1}]) \\
+  f_t &= \sigma(W_{f} * [\mathcal{X}_t, \mathcal{H}_{t-1}]) \\
+  \hat{\mathcal{C}_t} &= \tanh(W_{c} * [\mathcal{X}_t, \mathcal{H}_{t-1}])\\
+  \mathcal{C}_t &= f_t \odot \mathcal{C}_{t-1} + i_t \odot \hat{\mathcal{C}_t} \\
+  o_t &= \sigma(W_{o} * [\mathcal{X}_t, \mathcal{H}_{t-1}]) \\
+  \mathcal{H}_t &= o_t \odot \tanh(\mathcal{C}_t)
+  \end{align}
+  As we can see it has no bias weights and no peephole connections. 
+  Theres is also a difference in the input, we concatenate $\mathcal{X}_t$ and $\mathcal{H}_{t-1}$ a long the channel dimension and get this: $[\mathcal{X}_t, \mathcal{H}_{t-1}]$. $\mathcal{X}_t$ and $\mathcal{H}_{t-1}$ has shape $(batches, C_{hidden channels}, H, W)$ so when we concatenate $[\mathcal{X}_t, \mathcal{H}_{t-1}]$. $\mathcal{X}_t$ has shape $(batches, C_{hidden channels}+C_{hidden channels}, H, W)$.
+  This is more efficient because we only need one convolution per gate, it simplifies the code and the end result is the same. 
+
+  The cell architecture as implemented in python
+  \begin{lstlisting}
+    class ConvLSTMCell(nn.Module):
+    def __init__(self, hidden_channels, kernel_size):
+        super(ConvLSTMCell, self).__init__()
+        self.hidden_channels = hidden_channels
+        self.kernel_size = kernel_size
+
+        #Convolution LSTM gates (input already projected to hidden_channels)
+        self.conv_i = nn.Conv2d(hidden_channels + hidden_channels, hidden_channels, kernel_size, padding=1)
+        self.conv_f = nn.Conv2d(hidden_channels + hidden_channels, hidden_channels, kernel_size, padding=1)
+        self.conv_o = nn.Conv2d(hidden_channels + hidden_channels, hidden_channels, kernel_size, padding=1)
+        self.conv_c = nn.Conv2d(hidden_channels + hidden_channels, hidden_channels, kernel_size, padding=1)
+
+    def forward(self, x, h_prev, c_prev):
+        combined = torch.cat([x, h_prev], dim=1)  #Concatenate
+        i_t = torch.sigmoid(self.conv_i(combined))
+        f_t = torch.sigmoid(self.conv_f(combined))
+        o_t = torch.sigmoid(self.conv_o(combined))
+        c_t_hat = torch.tanh(self.conv_c(combined))
+        c_t = f_t * c_prev + i_t * c_t_hat
+        h_t = o_t * torch.tanh(c_t)
+        return h_t, c_t
+  \end{lstlisting}
+  Each gate is a convolutional layer followed by an activation function. This cell is called in the implementation of the full ConvLSTM model.
+
+The full model combines the cells in a meaningful manner, which in this case is a chronological one, so it follows the theory behind the ConvLSTM but also so it is capable of solving the problem of this thesis. The solution being a greyscale image prediction sequence of the mycelium with constant length. 
+The model takes a number of arguments, these are parameters that decide depth, width etc. of the model. The forward, where each component of the model is called, the model is assembled. The pipeline is as follows:
+The model is fed the input sequence, each frame is processed chronologically. First the channel of the frame is send to the input\_adapter, where it is broadcasted to $16$ hidden channels, so the cell can process it. These $16$ hidden channels are then used as input to the cell. The cell, based on that input and the cell state, computes another $16$ hidden channels and an updated cell state. For each $layer > 1$, the computed hidden channels and cell state is then used again for input to the cell. This is done for each frame in the input sequence.
+When all the frames in the input sequence has been processed, the last hidden channels and the last cell state is used to make predicitons. When making predictions it is exactly the same thing happening, except the cell is not feed the input sequence, but instead just the last hidden channels for each layer and frame. Then for each frame the output\_adapter is called, it takes the hidden channels as input and reduces them to one channel representing the greyscale channel, this is the result of the output\_adapter: $(B, 16, H, W) \rightarrow (B, 1, H, W)$.
+  \begin{lstlisting}
+    class ConvLSTM(nn.Module):
+    def __init__(self, input_channels, hidden_channels, kernel_size, num_layers):
+        super(ConvLSTM, self).__init__()
+        self.hidden_channels = hidden_channels
+        self.num_layers = num_layers
+
+        #Project input_channels -> hidden_channels
+        self.input_adapter = nn.Conv2d(input_channels, hidden_channels, kernel_size=1)
+
+        #Project hidden_channels -> output channel (1 for grayscale prediction)
+        self.output_adapter = nn.Conv2d(hidden_channels, 1, kernel_size=1)
+
+        #Stack ConvLSTM cells (same input/output channels)
+        self.cells = nn.ModuleList([
+            ConvLSTMCell(hidden_channels, kernel_size)
+            for _ in range(num_layers)
+        ])
+
+    def init_hidden(self, batch_size, spatial_size):
+        H, W = spatial_size
+        device = next(self.parameters()).device
+        h = [torch.zeros(batch_size, self.hidden_channels, H, W, device=device) for _ in range(self.num_layers)]
+        c = [torch.zeros(batch_size, self.hidden_channels, H, W, device=device) for _ in range(self.num_layers)]
+        return h, c
+
+    def forward(self, input_sequence: torch.Tensor, future: int = 0) -> torch.Tensor:
+        B, T_in, _, H, W = input_sequence.size()
+        h, c = self.init_hidden(B, (H, W))
+        
+        #Process input sequence to update hidden state
+        for t in range(T_in):
+            input_t = self.input_adapter(input_sequence[:, t])
+            for i in range(self.num_layers):
+                cell_input = input_t if i == 0 else h[i - 1]
+                h[i], c[i] = self.cells[i](cell_input, h[i].detach(), c[i].detach())
+
+    
+        outputs = []
+        input_t = h[-1]
+    
+        for t in range(future):
+            for i in range(self.num_layers):
+                cell_input = input_t if i == 0 else h[i - 1]
+                h[i], c[i] = self.cells[i](cell_input, h[i], c[i])
+            input_t = h[-1]
+            output_frame = self.output_adapter(input_t)
+            outputs.append(output_frame)
+    
+        return torch.stack(outputs, dim=1)  #[B, T_future, 1, H, W]
+  \end{lstlisting}
+  The number of predictions depend on the value of the integer $T\_future$. The outputs $[B, T_future, 1, H, W]$ will typically not have values in $[0,1]$ as for greyscale, this is because of the sigmoid layer in the loss function. 
+\subsubsection{Model architecture}
+The model can be constructed in many different sensical ways. The models for this project will have $1$ to $3$ layers. Each layer will consist of a ConvLSTM cell with the convolution layer gates. The model utilizes two types of $1 \times $ convolutional projection layers, the output\_adapter and the input\_adapter, made for projecting back and forth between hidden channels and input channels. This is what the core structure of the model looks like.
+
+For the thesis there has been constructed three models, each with respectively $16$, $24$ and $32$ hidden channels. The kernel size is constant for all models and is set at $3 \times 3$. All greyscale image tensors has to have the same height and weight dimensions in order for the model to process them. The max height is $371$ and the max width is $408$, images of this size is considered big. In order to combat the size issue, there is added a scale factor parameter that scales all the images down. This dramatically reduces the amount of padding that has to be done and the memory it takes to load the data.
+The input channel for all the data is greyscale, which sets $C_{in} = 1$. The length of the input sequence is calculated based on the length of the output sequence, $T_{in} = length(sequence) - T\_future$. The number of batches loaded in at once depends on the size of the model, if the model is wide or deep, the batch size has to be smaller, so the memory usage equals out. Usually the batch size is $B=10$ and for deep or wide models $B=5$. The input dimensions are then $[B = 10 \text{  or  } 5, T_{in}, C_{in}=1, H=371\lambda_{scale}, W=408\lambda_{scale}]$.
+The number of predicted frames / length of the output is a constant variable $T\_future$. Experiments include models with $T\_future = 20$, $T\_future = 40$ and $T\_future = 80$. The models architecture is autoregressive, which means each predicted frame is fed into the next time step. This is opposed to multiframe prediction, where multiple frames are used. In addition the model is also unidirectional, meaning there is no backward pass over time, it only goes forward. The activation functions are consistent with the traditional ConvLSTM structure.
+
+\subsection{Data optimization}
+Data optimization is crucial for good results in machine learning. The models are trained on the data and learns the patterns that it can find in the data, so it minimizes the loss. The problem for this thesis is to predict the growth of a mycelium network, therefore the data should reflect that network growth in a way that is sensical for the prediction. It is evident from the raw images, that there is some noise and the small nuances of white makes it difficult to distinguish between the mycelium hyphae / root network and the non-hyphae white background region, that the main hyphaes grow on.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/raw_target.png}
+  \caption{Visualization of the last $10$ frames in a non manipulated image sequence. $\lambda_{scale}=0.5$, dilation with disk(1)} % Dummy caption generated using lipsum
+  \label{fig:n11}
+\end{figure}
+
+A decision has been made to binarize the data by using adaptive thresholding and then skeletonize using the algorithm in T. Y. Zhang and C. Y. Suen's paper \cite{10.1145/357994.358023}. To use this algorithm succesfully the data must be altered. Firstly data is converted from $[C_{in}, H, W]$ to $[H, W]$. Image is then cleaned by setting all $values \leq 2$ to be equal to $0$. The cleaned image is then processed by gaussian blur, this applies a gaussian kernel across the image which blurs the image out more, making it less variant. Each entrance in the cleaned image is then divided by each entrance in the gaussian blur image $R(i, j) = \frac{I(i, j)}{\text{GaussianBlur}(I)(i, j) + \epsilon}$.
+The gaussian blur is capturing the illumination difference on the images and by dividing by it attempts to smooth out this difference. Values are then normalized to fit greyscale in the range $[0, 1]$. Now to highlight the hyphae Contrast Limited Adaptive Histogram Equalization (CLAHE) is applied to the image. CLAHE in this thesis is used as a black box. Briefly explained it amplifies contrasts locally, which is good for faint hyphae and hyphae in varying lighting. The altered image is then binarized using adaptive thresholding, it has to be adaptive because of the variable lighting and possible difference in concentration of hyphae. It works like this: $\text{binary}(i,j) = 
+\begin{cases}
+1 & \text{if } I(i,j) > \text{mean}(N_{i,j}) \\
+0 & \text{otherwise}
+\end{cases}$, it finds the mean of a local region and then zeroes out all entrances with $values \leq \text{mean}(N_{i,j})$. To fix holes and gaps in the binary image we use the \href{https://github.com/scikit-image/scikit-image/blob/v0.25.2/skimage/morphology/gray.py#L443-L517}{Closing} function. The function is treated as a black box, it serves the purpose of making the hyphae continous and the mycelium network connected. The next step is to skeletonize the binary image so each hyphae is of the same thickness. At last the image is transformed by \href{https://github.com/scikit-image/scikit-image/blob/v0.25.2/skimage/morphology/gray.py#L245-L363}{Dilation}, this makes the skeleton thicker, the goal of this is to balance the proportions of foreground and background pixels.
+ The image is then resized according to the scale factor $\lambda_{scale}$ and then padded to be of size $(height_{max}\lambda_{scale} \times width_{max}\lambda_{scale})$. 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/skeleton_target.png}
+  \caption{Visualization of the last $10$ frames in an optimized image sequence. $\lambda_{scale}=0.5$, dilation with disk(1)} % Dummy caption generated using lipsum
+  \label{fig:n12}
+\end{figure}
+
+To tackle the problem of sparse foreground pixels further measures has to be taken. One of the factors for the low proportion of foreground pixels stems from the data optimization pipeline, where we remove a big chunk of what was considered foreground initially. However the main factor is the max size padding, this adds all around a lot of extra background. The amount of padding is of course dependent on each sample, but based on visual inspections, it seems like a good chunk of the data is quite a bit smaller than the max size. The skeleton has already been dilated, which is a good first step. Secondly we want to find a mask that masks the relevant part of the image. This mask can then be passed to the loss functions, that then can be computed on only the masked area.
+The mask is found by setting a threshold, if $value>0$ then $value = 1$ else $value = 0$. Since all $padding = 0$ it will not be a part of the mask, one could argue that there could be some relevant background which has $value = 0$, but this is assumed to be very unlikely since the raw data images has not been cleaned.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/mask_target.png}
+  \caption{Visualization of the last $10$ masks for the frames in an image sequence.} % Dummy caption generated using lipsum
+  \label{fig:n13}
+\end{figure}
+
+After all the data optimization the foreground percentage with and without the mask, across the entire target training set are as follows:
+\begin{align*}
+  \textbf{For $\lambda_{scale} = 0.5$ and no dilation}\\
+  \frac{\text{total amount of foreground}}{\text{total amount of masked pixels}} = 24.12\%\\ 
+  \frac{\text{total amount of foreground}}{\text{total amount of pixels}} = 5.61\%\\
+  \textbf{For $\lambda_{scale} = 0.5$ and dilation with disk$(1)$}\\
+  \frac{\text{total amount of foreground}}{\text{total amount of masked pixels}} = 36.31\%\\ 
+  \frac{\text{total amount of foreground}}{\text{total amount of pixels}} = 8.44\%
+\end{align*}
+This shows a much healthier percentage of foreground, which implies a more balanced dataset. The settings $\lambda_{scale} = 0.5$ and no dialation, is the closest to $25\%$ foreground and $75\%$ background, which is the desired ratio. Just because dilation is not needed when $\lambda_{scale}=0.5$, doesnt mean it is not useful, with $\lambda_{scale}=1$ dilation is much needed to balance the dataset out.
+
+At first i processed the images with dilation after the resizing, this made the data especially vulernable to changes in the scale factor. This meant that the foreground would become to dominant, this was the resulting percentages:
+\begin{align*}
+  \textbf{For $\lambda_{scale} = 0.5$ and post resizing dilation, with disk$(1)$}\\
+  \frac{\text{total amount of foreground}}{\text{total amount of masked pixels}} = 45.63\%\\ 
+  \frac{\text{total amount of foreground}}{\text{total amount of pixels}} = 10.61\%\\
+  \textbf{For $\lambda_{scale} = 0.5$ and post resizing dilation with disk$(2)$}\\
+  \frac{\text{total amount of foreground}}{\text{total amount of masked pixels}} = 60.12\%\\ 
+  \frac{\text{total amount of foreground}}{\text{total amount of pixels}} = 14\%
+\end{align*}
+Since the forecast horizon can be rather long $T\_future = 20, 40, 80$, it is necessary to make sure the remaining frames for the input is long enough to be meaningful. The minimum length for an input sequences is sat at $20$ frames, this is still rather short, but depending on the sequence, it could be long enough to be meaningful.
+\subsection{Prediction}
+\subsubsection{Foreground-to-background proportion}
+To test the effect of pixel foreground and background ratios effect on ConvLSTM, we run three models respectively with $1$, $2$ and $3$ layer(s). They are ran on the three datasets proposed in the Data optimization section, it is the datasets with $24.12\%$, $36.31\%$ and $45.63\%$ foreground percentage.
+The first model that is ran is the ConvLSTM as decribed in Model section, it is ran with $1$ layer and $32$ hidden channels. The figure below showcases the first frame in its prediction sequences next to the ground truth target image.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/bfcomp1.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n14}
+\end{figure}
+The red square is the mask that is applied to the loss function, this means that only the prediction contained within that red square is considered, both in regards to evaluation and training. 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/bfcomp2.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n15}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/bfcomp3.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n16}
+\end{figure}
+\subsubsection{Depth}
+\subsubsection{Width}
+\subsubsection{Forecast horizon}
+\subsection{Analysis}
+\subsubsection{Depth}
+\subsubsection{Width}
+\subsubsection{Forecast horizon}
+\section{Discussion}
+\subsection{Overfitting}
+\subsection{Underfitting}
+\subsection{Deep vs wide networks}
+\subsection{Interpretation of results}
+\subsection{Strength and weakness}
+\subsection{Sources of errors}
+\subsection{Improvements}
+Ordinary differential equations, transformers, do some strain identification, predict contamination
+\section{Conclusion and future work}
+
+
+
+
+\section{Appendix}
+
+
+
+\section{References}
+
+
+
+\section{Acknowledgements}
+Part of the computation done for this project was performed on the UCloud interactive HPC system, which is managed by the eScience Center at the University of Southern Denmark.
+
+
+\bibliographystyle{plain}
+\bibliography{References}  % If you have some references, use BibTeX
+
+\end{document}
