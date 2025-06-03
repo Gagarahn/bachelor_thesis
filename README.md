@@ -15,3 +15,4 @@ example:
 
 L3_H32_T80.GIF    Has 3 layers, 32 hidden channels and 80 prediction frames.
 
+The GIF's seems to only load once - i would recommend to download the file for better inspection.
