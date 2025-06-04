@@ -1,7 +1,7 @@
 # bachelor_thesis
 Bachelor thesis
 
-GIF prediction sequence name decipher:
+GIF prediction sequence and hyperparameter name decipher:
 
 L: number of layer
 
@@ -13,6 +13,8 @@ BF: is an optional tag for before optimal data settings. number is foreground pi
 
 example: 
 
-L3_H32_T80.GIF    Has 3 layers, 32 hidden channels and 80 prediction frames.
+L3_H32_T80.gif    Is a sequence predicted by a model that have 3 layers, 32 hidden channels and 80 prediction frames.
+L3_H32_T80.txt    Is all hyperparameters for a model that have 3 layers, 32 hidden channels and 80 prediction frames.
+
 
 The GIF's seems to only load once - i would recommend to download the file for better inspection.
