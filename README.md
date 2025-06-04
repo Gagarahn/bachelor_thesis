@@ -1,7 +1,7 @@
 # bachelor_thesis
 Bachelor thesis
 
-GIF prediction sequence and hyperparameter name decipher:
+name decipher:
 
 L: number of layer
 
@@ -17,5 +17,6 @@ L3_H32_T80.gif    Is a sequence predicted by a model that have 3 layers, 32 hidd
 
 L3_H32_T80.txt    Is all hyperparameters for a model that have 3 layers, 32 hidden channels and 80 prediction frames.
 
+L3_H32_T80.CSV    Is all training loss, validation loss and dice scores for all epochs during the training of the model.
 
 The GIF's seems to only load once - i would recommend to download the file for better inspection.
