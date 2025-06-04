@@ -1,7 +1,7 @@
-T_future: 20
+T_future: 50
 min_input_length: 20
 scale_factor: 0.5
-batch_size: 3
+batch_size: 5
 num_epochs: 15
 learning_rate: 0.001
 input_channels: 1
