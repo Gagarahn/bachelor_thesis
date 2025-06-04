@@ -58,6 +58,12 @@
 % Please leave the table of contents as is, for the ease of navigation for TAs
 \tableofcontents % Generates the table of contents
 \newpage % Start a new page after the table of contents
+\section{Abstract}
+This thesis explores the ConvLSTMs ability to predict the growth pattern of the mycelium associated with the yeast \textit{Saccharomyces cerevisiae} over time. The sequences of growth has been binarized and then skeletonized so only the mycelium network remains, this is the data the models are trained on and the form of the predictions as well.
+It's an autoregressive model making up to $80$-frames long predictions, the models are varying in depth, width, prediction horizon and the foreground percentage of the datasets. The reasoning behind the variation is to test the models performance under different conditions.
+We found that deeper and wider models trained on a sparse foreground dataset had the best performance when evaluating on loss statistics and qualitative visual data. The best $80$-frame prediction model had $64$ hidden channels and $3$ layers, it had an average dice score of $0.7805$ and visually seems to capture the spatial features very good and the temporal features decently.
+Generelly the models all seemed to suffer from probalistic-blur in the later part of the prediction sequence. This made the models unable to learn and predict the intrinsic thin hyphae growth in the mycelium network. The findings seems to suggest that mycelium networks growth over time might be more complex than expected and that more complex models achieve better results.
+Overall the modelling of complex mycelium networks seems feasible using ConvLSTM, directions for future work could include deeper and wider models as well as implementation of transformer architecture.
 \section{Problem formulation}
 Deep learnings neural networks has proven to be an effective method for spatiotemporal forecasting. Being able to make accurate predictions of future events has proven valuable, it prevents mistakes and improves decision quality. In this thesis, we will be applying the methods of deep learning to make predictions on mycelium growth patterns.
 To be more precise, based on sequential images of the initial growth of mycelium, the model will output a prediction sequence of images of future growth. Being able to predict future growth of mycelium has many use cases. Firstly one would be able to predict whether or not the mycelium will keep growing, this helps determine if the sample should keep growing or be scratched. Secondly some mycelium has shown to grow in ways that are optimal for fx. subway networks, this is explored in \cite{joseph2022slime}. 
@@ -539,6 +545,7 @@ For implementation im using the following libraries
 Data manipulation, model creation and training happens in python and jupyter notebook files. For testing and visualization jupyter notebook is used, for training we run the python file from terminal on a cloud computer.
 The training happens on a cloud computer running an AMD EPYC 9454 CPU with 48 physical cores / 192 threads and 2.75 GHz combined with a NVIDIA H100 GPU and 756 GiB RAM. This is an incredibly strong computer, the GPU is the state of the art when it comes to training AI models and it has the ram and CPU to support it. The reason this is so important is because AI models can be trained using parallel operations on GPU's which makes the training process 10x-100x faster.
 With a dataset of this magnitude and a rather memory hungry model, training on a regular computer is not considered viable. The test runs and data manipulation aswell as visualization is done on a regular computer however.
+\subsection{Training loop}
 \section{Experiments and analysis}
 \subsection{Model}
 This is the Architecture of each cell in the implemented ConvLSTM model:
@@ -698,7 +705,7 @@ At first i processed the images with dilation after the resizing, this made the 
 Since the forecast horizon can be rather long $T\_future = 20, 40, 80$, it is necessary to make sure the remaining frames for the input is long enough to be meaningful. The minimum length for an input sequences is sat at $20$ frames, this is still rather short, but depending on the sequence, it could be long enough to be meaningful.
 \subsection{Prediction}
 \subsubsection{Foreground-to-background proportion}
-To test the effect of pixel foreground and background ratios effect on ConvLSTM, we run three models respectively with $1$, $2$ and $3$ layer(s). They are ran on the three datasets proposed in the Data optimization section, it is the datasets with $24.12\%$, $36.31\%$ and $45.63\%$ foreground percentage.
+To test the effect of pixel foreground and background ratios effect on ConvLSTM, we run three models respectively with $1$, $2$ and $3$ layer(s). They are ran on the three datasets proposed in the Data optimization section, it is the datasets with $24.12\%$, $36.31\%$ and $45.63\%$ foreground percentage, they will be refered to as dataset 1, dataset 2 and dataset 3.
 The first model that is ran is the ConvLSTM as decribed in Model section, it is ran with $1$ layer and $32$ hidden channels. The figure below showcases the first frame in its prediction sequences next to the ground truth target image.
 \begin{figure}[H]
   \centering
@@ -707,44 +714,209 @@ The first model that is ran is the ConvLSTM as decribed in Model section, it is 
   \label{fig:n14}
 \end{figure}
 The red square is the mask that is applied to the loss function, this means that only the prediction contained within that red square is considered, both in regards to evaluation and training. 
+Viusally, when looking at figure 11, the model seems to capture the characteristics of the mycelium pattern, it does so with varying conviction. On dataset 1, the gaps between the hyphae is not as distinct as with the other two, this is interpreted as the prediction being less sure of where the hyphae actually is. I think the prediction on dataset 1 and 2 is comparable to each other, both captures features rather well and seems to do so with the same conviction. Looking at the validation data in the table, it is evident that dataset 2 has the lowest validation loss and the highest dice score.
+\begin{table}[H]
+  \centering
+  \caption{Model Comparison: (1 Layer)}
+  \begin{tabular}{|c|c|c|c|}
+  \hline
+  Metric & 45.63\% & 36.31\% & 24.12\% \\
+  \hline
+  Train Loss & 0.1813 & 0.2138 & 0.2608 \\
+  Val Loss   & 0.1899 & 0.2221 & 0.2649 \\
+  Dice Loss  & 0.1699 & 0.1979 & 0.2490 \\
+  \hline
+  \end{tabular}
+\end{table}
+The next model has $2$ layers and $32$ hidden channels, it is a slight deeper model than the one before. Right out of the gate looking at figure 12, it is seen that the model is likely underfitting to the data. This is typical for a high foreground percentage, because its more likely to be correct if guessing over a broad amount of pixels than if the image had a low foreground percentage. On the other hand the model seems to be fitting quite well to dataset 1 and 2, when comparing ground truth to predictions. The background is a dark grey, meaning it isnt averaging its guesses, but tries to capture the pattern of the mycelium. It seems like the contrast between background and foreground is the highest on dataset 1, which indicates a more confident model. 
 \begin{figure}[H]
   \centering
   \includegraphics[width=1\linewidth]{images/bfcomp2.png}
   \caption{} % Dummy caption generated using lipsum
   \label{fig:n15}
 \end{figure}
+As presented in the table, the validation loss for the model is lower on dataset 2 than the others. One of the reasons why it might be lower than dataset 1's model, is that there is more foreground to be correct on. An explaination is that by guessing uniformly there is a higher chance to be correct and since wrong guesses are punished harder due to BCE, it has a lower loss.
+
+\begin{table}[H]
+  \centering
+  \caption{Model Comparison: (2 Layers)}
+  \begin{tabular}{|c|c|c|c|}
+  \hline
+  Metric & 45.63\% & 36.31\% & 24.12\% \\
+  \hline
+  Train Loss & 0.2119 & 0.2095 & 0.2594 \\
+  Val Loss   & 0.2127 & 0.2170 & 0.2635 \\
+  Dice Loss  & 0.1844 & 0.1875 & 0.2433 \\
+  \hline
+  \end{tabular}
+\end{table}
+The third model with $3$ layers and $32$ hidden channels has more varying results. Once again it is underfitting on data 3 and therefore is capturing none of the complexity. The model trained on dataset 2 seems to be struggling with confidently predicting the hyphae. This is likely due small gaps in between the hyphae and the high foreground density. Visually the model trained on dataset 1 looks superior, it mimicks the ground truth mycelium pattern and might be "anticipating" the growth of the mycelium in future frames by having a faded border around the mycelium. 
 \begin{figure}[H]
   \centering
   \includegraphics[width=1\linewidth]{images/bfcomp3.png}
   \caption{} % Dummy caption generated using lipsum
   \label{fig:n16}
 \end{figure}
+However once again, according to the table, the validation loss is lower and the dice score is higher for the model trained on dataset 2.
+\begin{table}[H]
+  \centering
+  \caption{Model Comparison: (3 Layers)}
+  \begin{tabular}{|c|c|c|c|}
+  \hline
+  Metric & 45.63\% & 36.31\% & 24.12\% \\
+  \hline
+  Train Loss & 0.2127 & 0.2061 & 0.2542 \\
+  Val Loss   & 0.2133 & 0.2172 & 0.2623 \\
+  Dice Loss  & 0.1844 & 0.1827 & 0.2348 \\
+  \hline
+  \end{tabular}
+\end{table}
+ALl future models are all trained on dataset 3, meaning the dataset with no dilation and a foreground percentage of $24.12\%$.
 \subsubsection{Depth}
+In this section we will be examining three models each with varying depths, the three models has $1$, $2$ and $3$ layers respectively. The models are identical in all other regards, they have 32 hidden channels, same loss function and prediction length. Since the model with three layers uses more memory we had to decrease the batch size to $3$ for the training of that specific model. These number of layers have been choosen because biological skeletons usually dont require deep models to learn and there is also a memory restriction on the hardware the models are trained on. We will be examining the initial frame prediction and a thresholded binarized version of the prediction compared to the target. Further we will be discussing, how the prediction sequence changes as it progresses in time, all sequences can be found at \cite{gagarahn2025bachelor} as GIF-files.
+
+It looks like the first $1$ layer model made a prediction that is a decent fit to the target as you can tell by the figure. You can tell the prediction is a bit fuzzy and observing the thresholded prediction, it's evident that the predicted hyphae is quite a bit thicker than that of the target. The entire predicted sequence is available as a GIF-file in the GitHub repository associated with this thesis \cite{gagarahn2025bachelor}.
+I would say the predicted sequence even performs decently in the later frames, it is not identical to the target, but it is predicting that the mycelium keeps expanding. It seems to be unable to single out any new pattern of the growing hyphae, but instead just makes a solid rather uniform prediction around the established pattern.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L1_H32_T80.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n17}
+\end{figure}
+The prediction in figure 18, that was produced by the two layer model, initially seems visually worse than the prediction by the $1$ layer model, due to how the thresholded version is looking. However it seems to be catching some details the other model didnt. It has learned that the mycelium grows from the center which creates a circular growth pattern, we can tell this by the grey cloud around the complex pattern. This is however the only trait it is keeping as the sequence goes on, because it is forgetting the intricate net-like pattern of the hyphae. Instead it fades into a grey cloud and only by observing the treshold can you see it is keeping its circular prediction.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L2_H32_T80v1.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n18}
+\end{figure}
+The thresholded image of the prediction shown in figure 19, made by the $3$ layer model, looks close to that of the target, although it has a bit thicker hyphae. When just looking at the raw prediction a few details stand out. The model has predicted that the future frames are gonna be circular and close around the initial mycelium net. Also the background is darker than that of the prediction in figure 14, this means it is more confident that there wont be any foreground there. Looking at the GIF for the entire sequence, we observe that it also struggles from blurring into a grey cloud, however the net-like pattern is still visible, just more faint. Examining the thresholded version, one can see that it is not just blurring completely out, it still maintains a decent prediction for what should be considered foreground. Not optimal for pattern recognition but it does predict accurately that it grows and the way it grows, although in the end it overpredicts how much growth will happen.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H32_T80.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n19}
+\end{figure}
+The two models that stand out, when doing the visual evaluation, is the ones with $1$ layer and $3$ layers. 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/comparison_loss_plot_depth.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n20}
+\end{figure}
+Looking at figure $17$, it is observed that the model with $3$ layers reaches the lowest minimum validation loss and also the lowest test and dice loss compared to the two other models. Based on the visual evaluation and the loss function statistics, the $3$ layer model is the one we will use for further research.
 \subsubsection{Width}
+In this section, we will be examining three predictions made by three models with varying width in the hidden channels, further we will be looking at the loss statistics for the three models. It is models with $3$ layers, $8$, $16$ and $64$ hidden layers and predicting sequences of length $80$, all trained and evaluated on the non dilation dataset.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H8_T80.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n21}
+\end{figure}
+The $8$ hidden channel models prediction is not capturing any patterns or complexities, it is making a uniform guess, this suggests underfitting. The claim is further supported by the loss statistics in figure $21$. $8$ hidden channels is considered shallow for a neural network and it might not be enough to capture the complexities of mycelium networks.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H16_T80.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n22}
+\end{figure}
+The prediction made by the $16$ hidden channels model is blurry initially, but manages to keep its form and rather accurately depict the growth of the target. This is especially true for the threshold version of the prediction. It keeps the seperations until a pretty late stage and the outline is not far off from the target. Overall the prediction suggests that the model is not as good at making as accurate predictions as the others early on, but is more stable over time.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H64_T80.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n23}
+\end{figure}
+Examining figure $20$, showcasing the prediction made by the $64$ hidden channels model, it can be seen that the model is confident in its prediction. There is high contrast between the hyphae and the background, you can even see, what i assume to be more faint hyphae, being less white because it only will be included in the target some of the time, due to the optimization pipeline. The mycelium net is not fuzzy and the treshold is seemingly accurate to the target, except for some extended hyphae which show up on later in the target sequence.
+The model seems to preserve its complexity better than any previous model, the threshold still has the distintion between foreground and background in the end. It is still struggling with blurring out in later frames and also over extending its spread / growth.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/comparison_loss_plot_width.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n24}
+\end{figure}
+According to the loss statistics in figure $21$ the model with $16$ hidden channels performed comparable to the one with $32$ hidden channels and visually they also express the same behaviour. The $64$ hidden channels model out performs all previous models, when it comes to loss statistics. Visually it is also doing the best or the same as the best models, we have looked at so far.
 \subsubsection{Forecast horizon}
-\subsection{Analysis}
-\subsubsection{Depth}
-\subsubsection{Width}
-\subsubsection{Forecast horizon}
+In this section, we will be evaluating the how effective the model with $3 $ layers and $64$ hidden channels is on different prediction sequence lengths. The models are trained to predict $20$, $50$ and $100$ frames ahead.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H64_T20.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n25}
+\end{figure}
+Figure $22$ featuring the $20$ frames long prediction made by the model trained with a forecast horizon of $20$. This is the most accurate prediction our model has produced. The first frame in the sequence is very close to the target frame, when applying the threshold, they look almost exactly the same.
+ When inspecting the sequence in the GitHub repository it is seen that the model is predicting the mycelium net to expand, it is unable to predict the distinct hyphae, but just predicts a generel expansion around the circular net. The raw prediction is dilluting details, but the complexities of the mycelium patern is still clearly visible.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H64_T50.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n26}
+\end{figure}
+The $50$ frames long prediction sequence is not showcasing any learned complexities or patterns as evident from figure 23. It is comparable to the model with $8$ hidden channels and the predictions made on the data with higher foreground percentage. It is a sign of underfitting and this claim of underfitting is also supported by the loss statistic in figure $25$. It is rather an odd occurence, since shorter sequences are expected to outperform longer sequences. I did train the model twice with these settings and on the same data and it got stuck in the same local minimum twice.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/L3_H64_T100.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n27}
+\end{figure}
+For the prediction sequence with a $100$ frames, a not to unexpected behavior is aparrent from figure 24 and the GIF sequence. The predicted growth of the mycelium is not as complex as the target, it is however pretty close in size and shape. One could intepret this as the model minimizing loss by hedging its bet that the mycelium will expand in a circular pattern and not guessing the pattern of the hyphae.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1\linewidth]{images/comparison_loss_plot_time.png}
+  \caption{} % Dummy caption generated using lipsum
+  \label{fig:n28}
+\end{figure}
+The $100$ frames model performed better than expected in regards to the loss statistics. Visually it is not useful for predicting patterns, but predicting expected covered area it seemed to do well. Another rather unexpecting finding was that the $50$ frames model under performed to such a degree, performing the worst out of all models. The $20$ frame model performed to no surprise very well particularily on the dice loss. None of the models did however prove that they learned the new expanding hyphae growth patterns, but most of them instead made more uniform predictions around the skeleton.
 \section{Discussion}
-\subsection{Overfitting}
-\subsection{Underfitting}
+
+\subsection{Overfitting and Underfitting}
+\subsubsection{Overfitting}
+A typical indicator of overfitting is that the test and validation loss is significantly higher than the training loss. During the model hyperparameter experiments we did not observe any alarming difference between the training and validation loss. Throughtout the training there is cases of deviation, but they follow each other closely.
+For almost all the models the validation loss minimum was very close to the training loss, the parameters associated with the minimum validation loss is the ones that are extracted and used for modelling. This implies that the parameters used are not ones that are overfitted to the training data.
+Small datasets can lead to overfitting as well, it is know that many deep learning models are trained on datasets consisting of millions of samples. This is however not the norm in medical and biological modelling, since data is expensive to produce, here a dataset with $5500$ samples is considered large. Only $70\%$ of the data is reserved for training, further some of those samples are removed because they are to short.
+Some would also argue that having three layers and 64 hidden channels is complex of a model for simple skeletonized biological data, which also could lead to overfitting. However there is no sign of overfitting in our evaluations of our models.
+\subsubsection{Underfitting}
+There was clear signs of underfitting in some of the models we ran, this was in the $8$ hidden channels model and the $50$ future frames model. The learning curve was close to constant through the entire training, the validation and training loss was close to each other and they failed at capturing the underlying structure in the data.
+More generally speaking on all the models there was problems with the loss not changing that much from beginning to end. This might have been because of the vanishing gradient problem, in the the theory section on LSTM the vanishing gradient problem was adressed and LSTM generally fixed this problem. This is however not entirely the case, the vanishing gradient problem is still there, just to a lesser extent than the first RNNs.
+When conducting the experiments on different foreground percentages, some of the deeper models especially showed signs of underfitting. This was likely due to the fact that BCE punishes confidently wrong guesses harshly, so because of the high amount of foreground it was tough to guess correctly and the loss minimizes by not being confident and uniforming its guess. 
 \subsection{Deep vs wide networks}
+Depth is refering to the number of layers in the network and width is refering to the number of hidden channels. The benefits of deeper models are that they can model temporal data better and it enables compositional representations, meaning it can dedicate each layer to a feature for example edges.
+Deeper networks also takes longer to train, they suffer from vanishing gradients, especially true for RNNs and adding layers increase memory usage signifcantly. We observed in our trials that the deeper model had a lower validation and test loss. This could be a result of the decrease in blur due to the temporal efficiency. They also did take longer to train.
+The benefits of making a network wider is that they are easier to train than deeper models and they can learn more complex spatial detail. that said it increases parameter count and to much width can make the model overfit. 
+Generally i think the models could have benefitted from being wider, it was a consistent problem that the models couldnt predict the spatial complexities of the expanding mycelium network and hyphae.
+
 \subsection{Interpretation of results}
-\subsection{Strength and weakness}
-\subsection{Sources of errors}
+Overall the analysis suggests that deeper and wider models performs better than shallow and narrow models on the prediction of mycelium growth patterns. It was a repeating problem that the models did not capture the specific pattern of the mycelium network but rather just that there would be growth. Now so far the loss statistics has shown that the wider and the deeper the models are the lower the validation, test and training loss goes and since there is no signs of overfitting. I think it is reasonable to say the ConvLSTM is capable of capturing these features, however it would take powerful hardware to train such a model. 
+An observation that was made across the board for the prediction was that over time the prediction frames got more and more blurry, this is known as probalistic blur. It could symbolize that the mycelium does not grow in a predictable way but rather it does randomly, this is none the less not likely. We prepose it's because there is an accomulation of error through time since the model is autoregressive and because the BCE punishes wrong guesses to harshly. The failure to accurately predict the hyphae growth could also be attributed to the rather varied and medium sized dataset. 
+Even though all the mycelium is that of the \textit{Saccharomyces cerevisiae}, there is still different strains, that might have different growth patterns.
+The experiments also indicate that lower foreground percentages are beneficial for the visual appearance of the predictions, however worse for loss statistics.
+The best model achieved for the $80$ frames prediction task on the sparse foreground dataset (dataset 3), is the $3$ layer deep and $64$ hidden channels wide ConvLSTM model. It had an average test loss of $0.2426$, this is considered low loss functions using BCE, which is used with a $0.6$ weight in our comboloss. Since BCE punishes confidently wrong guesses harder, the background will contain some probabilities above $0$ and this will count towards the loss, but can easily be sorted using a threshold. An average dice loss of $0.2195$ is also considered good for segmentation tasks, for binary values like ours it means that after the $0.5>$ treshold $78.05\%$ of the predicted pixels and the target pixels overlap. 
+Now if we put this in the context of $80$ predicted frames, the model actually performed very impressively. It's not an easy task to predict the future and to do so spatially is even more challenging. There is error accumulation and just an increased amount of uncertainty the further the prediction horizon is and $80$-frame forecast is considered long-term for ConvLSTM.
+This becomes clear, if we look at the performance of the model with the same model architecture but trained to predict $20$ frames ahead instead. The loss statistics are $\text{average test loss} = 0.1913$ and $\text{Average Dice Loss} = 0.1621$, this is not considered outstanding for $20$-frame forecasting, but is still in the good to very good performance range.
+\subsection{Strength and limitations}
+The use of cross-validation is crucial for evaluating unbiased and useful models. The fact that the dataset is split up into three segments and we therefore achieve unbiased evaluation, makes it so the conclusions and statistics we reach are more likeli to be the true reflection of the models performance.
+ConvLSTM is a strong model, it severly lessens the impact of the vanishing gradient problem and it utilizes the powerful convolution operator, which has proven itself as one of the most efficient ways for learning spaital features. The data optimization pipeline has proven itself efficient at binarizing and skeletonizing the images in a way that excludes noise. Further the loss function has been choosen in such a way that it is efficient at learning sparse foreground skeleton networks, where detail is important. 
+Overall the loss statistics are indicating that the models are well performing and manages to capture a decent amount of features. It shows that it is possible to get good results predicting lengthy horizons. The qualitative results were also promising and showed some recogniztion of patterns, despite not predicting individual hyphae.
+The findings of this thesis suggests that spatiotemporal biological systems might not be as simple as many assume they are. Results and matrics got better the deeper and wider the model went. There might be greater advantages to going even deeper and wider than we went in this thesis, which is an exciting finding.
+Being able to accurately model the growth of mycelium over time is extremely valuable. The main components of vitamins, aminoacids, enzymes for textile production, detergent and medicine is based on fermentation technology and yeasts are a crucial part of that. Further in the introduction we discussed the link between optimization and mycelium networks, if one manages to accurately predict mycelium growth, then one might be able to use the same model for optimizing networks.
+
+A good dataset is essential for the success of training machine learning models. The dataset we used in this thesis is rather robust there is however some challenges. Mycelium can easily get contaminated or go into hibernation, this prevents the mycelium from growing and showing any real spatial change over a period of time. Some of the samples in this dataset seems to not be growing or change very slowly over time. This is a problem because it makes it so the model has to learn this dimension of growing and non growing mycelium, which can be tough since they act so differently. This could also be a strenght, because the use case for the model increase if it is succesfully can predict which of the two events will happen.
+The optimization pipeline is not perfect, there is an element of randomness to what hyphaes gets shown in the final processed image. It might be because of lighting changes or other stuff that makes it so the pipeline doesnt always show the same skeleton network. However it seems like the model averaged out the hyphae, so that faint hyphae that didnt always show up after the processing would still be predicted, just not with the same amount of certainty.
+The predictional blur happening over time is creating noise and removes the contrast and complexity of the network. This is a common problem with ConvLSTMs and is certainly a limitation to what is achievable over long prediction horizons. When training the models the training data is shuffled when it is loaded, this ensures variance in the ordering, so the model doesnt learn the order of the training data instead of the underlying distribution. This however also adds an element of randomness to training models, sometimes results cant be reproduced or some models will get stuck in wrong local minima. This is not ideal because it blurs the line between, what is random and what is deliberate, and you can't just rule a model out the first time it is trained.
+The main limitation of Deep Learning models is the computational power it takes to train them. In this project we used a state-of-the-art GPU for training and throughout the project saw limitations in memory and computional power. There was a total of 477 GPU hours used to train the models in this project. The required hardware is expensive and hard to come by, the hardware is high energy consuming and the time it takes to train the models, puts limitations on accesibility and research.
 \subsection{Improvements}
 Ordinary differential equations, transformers, do some strain identification, predict contamination
-\section{Conclusion and future work}
-
-
-
+We would include an experiment where we testet adding the strain as an input, this could make it so the model could have different parameters for different strains, in case they grow differently. One could also add two output dimensions by using a classification head, one to determine the strain of the input and one to determine if the yeast is contaminated or will see significant growth. 
+Further a mask for the temporal padding could improve the learning of long-term dependencies. One could also make the ConvLSTM bidirectional meaning it can consider past and future context. It could also be interesting to compare autoregressive models to non-autoregressive models, the tests suggests that there is quite a bit of error accumulation, maybe using non-autoregressive architecture could prevent this.
+Transformers are integral to the deep learning revolution we have seen in Natural Language Processing. They are highly versitile and has shown great promise in learning long-term dependencies because they dont have the vanishing gradient problem. There is a lot of different transformer architecture for learning spatiotemporal dependecies and we think it could be exciting to test these against the ConvLSTM.
+\section{Conclusion}
+This thesis examined different architectures of the ConvLSTM model for forecasting skeletonized and binarized mycelium growth with a long prediction horizon. The autoregressive models with 1, 2 and 3 layers, $32$ hiddenchannels, $1$ greyscale input channel, $80$-frame forecast, $3 \times 3$ kernel, $1$ stride, $2$ wide zero padding, no bias and no peephole connections, was trained on datasets with varying foreground percentages. The foreground percentage was controlled through dilation and the foreground that examined the best behavior was dataset $3$ with $24.12\%$ foreground, this was concluded mainly on the qualitative results.
+Further we compared models with varying widths and depths trained on dataset $3$. Overall most of the models showed good loss statistics compared to the rather long forecast horizon, but the overall theme was that wider and deeper models did better than shallow and narrow models.
+ Our best model, with $3$ layers, $64$ hiddenchannels and $80$-frame forecast, saw an average test loss of $0.2426$ and An average dice loss of $0.2195$, this is considered very good for its task. All the produced visual qualitative data produced by the models struggled with, what is likely, accumulation of error as the prediction sequence progresses in time. This is normal behavior for ConvLSTM, none the less it was problematic and made it so the model couldnt accurately predict the complexities of the individual hyphae growth and the expansion of the mycelium net.
+ It could be interesting to test deeper and wider model on the data and see if there could be further improvements to the predictions, maybe even add an input dimension for strain type. Transformers have shown incredible performance and versitility, it could be interesting to compare the performance of the ConvLSTM to that of a transformer.
+ Fermentation technology is of critical importance in the production of many products, modelling of yeasts growth pattern could improve the fermentation proces further.
 
 \section{Appendix}
-
-
-
-\section{References}
 
 
 
