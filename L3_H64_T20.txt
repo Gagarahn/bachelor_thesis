@@ -1,0 +1,14 @@
+T_future: 50
+min_input_length: 20
+scale_factor: 0.5
+batch_size: 5
+num_epochs: 15
+learning_rate: 0.001
+input_channels: 1
+hidden_channels: 64
+kernel_size: (3, 3)
+num_layers: 3
+loss_params: {'gamma': 2, 'lambda_focal': 0.6, 'lambda_dist': 0.0, 'lambda_dice': 0.4}
+do_skeletonize: True
+max_width: 408
+max_height: 371
