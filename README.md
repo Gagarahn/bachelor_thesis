@@ -14,6 +14,7 @@ BF: is an optional tag for before optimal data settings. number is foreground pi
 example: 
 
 L3_H32_T80.gif    Is a sequence predicted by a model that have 3 layers, 32 hidden channels and 80 prediction frames.
+
 L3_H32_T80.txt    Is all hyperparameters for a model that have 3 layers, 32 hidden channels and 80 prediction frames.
 
 
